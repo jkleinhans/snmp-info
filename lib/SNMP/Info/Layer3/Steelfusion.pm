@@ -1,6 +1,6 @@
-# SNMP::Info::Layer3::Pica8
+# SNMP::Info::Layer3::Steelfusion
 #
-# Copyright (c) 2013 Jeroen van Ingen
+# Copyright (c) 2013 Eric Miller
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -27,26 +27,30 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-package SNMP::Info::Layer3::Pica8;
+package SNMP::Info::Layer3::Steelfusion;
 
 use strict;
 use warnings;
 use Exporter;
 use SNMP::Info::Layer3;
 
-@SNMP::Info::Layer3::Pica8::ISA       = qw/SNMP::Info::Layer3 Exporter/;
-@SNMP::Info::Layer3::Pica8::EXPORT_OK = qw//;
+@SNMP::Info::Layer3::Steelfusion::ISA
+    = qw/SNMP::Info::Layer3 Exporter/;
+@SNMP::Info::Layer3::Steelfusion::EXPORT_OK = qw//;
 
-our ($VERSION, %GLOBALS, %MIBS, %FUNCS, %MUNGE);
+our ($VERSION, %GLOBALS, %FUNCS, %MIBS, %MUNGE);
 
 $VERSION = '3.81';
 
 %MIBS = (
     %SNMP::Info::Layer3::MIBS,
+    'STEELFUSIN-MIB' => 'serialNumber',
 );
 
 %GLOBALS = (
     %SNMP::Info::Layer3::GLOBALS,
+    # Fully qualified to remove ambiguity of 'model'
+    'rb_model' => 'STEELFUSION-MIB::model',
 );
 
 %FUNCS = (
@@ -57,36 +61,45 @@ $VERSION = '3.81';
     %SNMP::Info::Layer3::MUNGE,
 );
 
+sub layers {
+    return '01001100';
+}
+
 sub vendor {
-    return 'pica8';
-}
-
-sub os {
-    my $pica8 = shift;
-    my $descr   = $pica8->description();
-
-    return $1 if ( $descr =~ /(\S+)\s+Platform Software/i );
-    return;
-}
-
-sub os_ver {
-    my $pica8 = shift;
-    my $descr   = $pica8->description();
-
-    if (defined ($descr)) {
-      return $1 if ($descr =~ /Software version ([\d\.]+)/i);
-    }
-    return;
+    return 'riverbed';
 }
 
 sub model {
-    my $pica8 = shift;
-    my $descr   = $pica8->description();
+    my $riverbed = shift;
 
-    if (defined $descr) {
-      return $1 if ($descr =~ /Hardware model (P-\d{4})/i);
+    my $model = $riverbed->rb_model() || '';
+
+    if ($model =~ /^(\d+)/) {
+        return $1;
     }
-    return;
+    return $model;
+}
+
+sub os {
+    return 'steelfusion';
+}
+
+sub os_ver {
+    my $riverbed = shift;
+
+    my $ver = $riverbed->systemVersion() || '';
+
+    if ( $ver =~ /(\d+[\.\d]+)/ ) {
+        return $1;
+    }
+
+    return $ver;
+}
+
+sub serial {
+    my $riverbed = shift;
+
+    return $riverbed->serialNumber();
 }
 
 1;
@@ -94,30 +107,32 @@ __END__
 
 =head1 NAME
 
-SNMP::Info::Layer3::Pica8 - SNMP Interface to L3 Devices, Pica8
+SNMP::Info::Layer3::Steelfusion - SNMP Interface to Riverbed Steelhead WAN
+optimization appliances.
 
-=head1 AUTHORS
+=head1 AUTHOR
 
-Jeroen van Ingen
+Eric Miller
 
 =head1 SYNOPSIS
 
  # Let SNMP::Info determine the correct subclass for you.
- my $pica8 = new SNMP::Info(
+ my $riverbed = new SNMP::Info(
                           AutoSpecify => 1,
                           Debug       => 1,
-                          DestHost    => 'myrouter',
+                          DestHost    => 'myswitch',
                           Community   => 'public',
                           Version     => 2
                         )
     or die "Can't connect to DestHost.\n";
 
- my $class      = $pica8->class();
+ my $class = $riverbed->class();
  print "SNMP::Info determined this device to fall under subclass : $class\n";
 
 =head1 DESCRIPTION
 
-Subclass for Pica8 devices
+Abstraction subclass for Riverbed Steelhead WAN optimization appliances.
+
 
 =head2 Inherited Classes
 
@@ -129,13 +144,13 @@ Subclass for Pica8 devices
 
 =head2 Required MIBs
 
-=over
+F<STEELHEAD-MIB>
 
-=item F<PICA-PRIVATE-MIB>
+=over
 
 =item Inherited Classes' MIBs
 
-See L<SNMP::Info::Layer3> for its own MIB requirements.
+See L<SNMP::Info::Layer3/"Required MIBs"> for its own MIB requirements.
 
 =back
 
@@ -145,35 +160,54 @@ These are methods that return scalar value from SNMP
 
 =over
 
-=item $pica8->vendor()
+=item $riverbed->vendor()
 
-Returns 'pica8'
+Returns 'riverbed'
 
-=item $pica8->model()
+=item $riverbed->model()
 
-Returns the model name extracted from C<sysDescr>.
+Returns the chassis model.
 
-=item $pica8->os()
+(C<STEELHEAD-MIB::model>)
 
-Returns the OS extracted from C<sysDescr>.
+=item $riverbed->os()
 
-=item $pica8->os_ver()
+Returns 'steelhead'
 
-Returns the OS version extracted from C<sysDescr>.
+=item $riverbed->os_ver()
+
+Returns the software version extracted from (C<systemVersion>).
+
+=item $riverbed->serial()
+
+Returns the chassis serial number.
+
+(C<serialNumber>)
+
+=back
+
+=head2 Overrides
+
+=over
+
+=item $riverbed->layers()
+
+Returns 01001100.  Steelhead does not support bridge MIB, so override reported
+layers.
 
 =back
 
 =head2 Globals imported from SNMP::Info::Layer3
 
-See documentation in L<SNMP::Info::Layer3> for details.
+See documentation in L<SNMP::Info::Layer3/"GLOBALS"> for details.
 
-=head1 TABLE ENTRIES
+=head1 TABLE METHODS
 
 These are methods that return tables of information in the form of a reference
 to a hash.
 
 =head2 Table Methods imported from SNMP::Info::Layer3
 
-See documentation in L<SNMP::Info::Layer3> for details.
+See documentation in L<SNMP::Info::Layer3/"TABLE METHODS"> for details.
 
 =cut

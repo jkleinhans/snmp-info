@@ -15,11 +15,12 @@ on:
       - master
     tags:
       - '[0-9].[0-9][0-9]'
-    pull_request:
-      types: [opened, synchronize, reopened]
+  pull_request:
+    types: [opened, synchronize, reopened]
 jobs:
   test_snmp_info:
     name: Test and CPAN Upload
+    if: github.repository == 'netdisco/snmp-info'
     runs-on: ubuntu-latest
     container:
       image: 'netdisco/netdisco:latest-do'
@@ -46,7 +47,6 @@ jobs:
     - name: Install Perl deps
       run: |
         sudo -u netdisco /home/netdisco/bin/localenv cpanm --notest Hook::LexWrap Test::Class::Most Test::Distribution Test::MockObject::Extends PPI Class::ISA Module::Info File::Slurp Test::Perl::Critic Test::Spelling CPAN::Uploader
-        sudo -u netdisco /home/netdisco/bin/localenv curl -L https://raw.githubusercontent.com/rjbs/CPAN-Uploader/4dd4fbad6bc96257c53a50ea2761932795dddf5c/lib/CPAN/Uploader.pm > /home/netdisco/perl5/lib/perl5/CPAN/Uploader.pm
 
     - name: Run Tests
       id: build_and_run_tests
@@ -56,7 +56,7 @@ jobs:
       continue-on-error: true
 
     - name: IRC test failure notification
-      if: (steps.build_and_run_tests.outcome == 'failure') && (github.event_name != 'workflow_dispatch')
+      if: (steps.build_and_run_tests.outcome == 'failure') && (github.event_name != 'workflow_dispatch') && (github.event_name != 'pull_request')
       uses: Gottox/irc-message-action@v2
       with:
         channel: '#netdisco'
@@ -83,7 +83,7 @@ jobs:
 
     - name: Upload to CPAN
       id: upload_to_cpan
-      if: startsWith(github.ref, 'refs/tags/')
+      if: success() && startsWith(github.ref, 'refs/tags/')
       env:
         PAUSE_USERNAME: ${{ secrets.PAUSE_USERNAME }}
         PAUSE_PASSWORD: ${{ secrets.PAUSE_PASSWORD }}
