@@ -25,7 +25,7 @@ our
     ($VERSION, %FUNCS, %GLOBALS, %MIBS, %MUNGE, $AUTOLOAD, $INIT, $DEBUG, %SPEED_MAP,
      $NOSUCH, $BIGINT, $REPEATERS);
 
-$VERSION = '3.82';
+$VERSION = '3.89';
 
 =head1 NAME
 
@@ -33,7 +33,7 @@ SNMP::Info - OO Interface to Network devices and MIBs through SNMP
 
 =head1 VERSION
 
-SNMP::Info - Version 3.82
+SNMP::Info - Version 3.89
 
 =head1 AUTHOR
 
@@ -64,6 +64,14 @@ list any missing functionality (such as neighbor discovery tables).
                             DestHost    => 'router',
                             Community   => 'public',
                             Version     => 2
+                            # Parameter reference for SNMPv3
+                            # Version   => 3
+                            # SecLevel  => 'authPriv', # authPriv|authNoPriv|noAuthNoPriv
+                            # SecName   => 'myuser',
+                            # AuthProto => 'MD5',      # MD5|SHA
+                            # AuthPass  => 'authp4ss',
+                            # PrivProto => 'DES',      # DES|AES
+                            # PrivPass  => 'pr1vp4ss',
                           ) or die "Can't connect to device.\n";
 
  my $err = $info->error();
@@ -434,6 +442,12 @@ See documentation in L<SNMP::Info::MRO> for details.
 F<S5-AGENT-MIB>, F<S5-CHASSIS-MIB>.
 
 See documentation in L<SNMP::Info::NortelStack> for details.
+
+=item SNMP::Info::PortAccessEntity
+
+F<IEEE8021-PAE-MIB>
+
+See documentation in L<SNMP::Info::PortAccessEntity> for details.
 
 =item SNMP::Info::PowerEthernet
 
@@ -1143,6 +1157,12 @@ Subclass for Gigamon devices.
 
 See documentation in L<SNMP::Info::Layer7::Gigamon> for details.
 
+=item SNMP::Info::Layer7::HWGroup
+
+Subclass for HW Group devices.
+
+See documentation in L<SNMP::Info::Layer7::HWGroup> for details.
+
 =item SNMP::Info::Layer7::Liebert
 
 Subclass for Liebert devices.
@@ -1830,6 +1850,7 @@ sub device_type {
         9694  => 'SNMP::Info::Layer7::Arbor',
         12532 => 'SNMP::Info::Layer7::Neoteris',
         14525 => 'SNMP::Info::Layer2::Trapeze',
+        21796 => 'SNMP::Info::Layer7::HWGroup',
         26866 => 'SNMP::Info::Layer7::Gigamon',
     );
 
@@ -4025,6 +4046,8 @@ Takes an OID and return the object name if the right MIB is loaded.
 
 sub munge_e_type {
     my $oid = shift;
+    return unless $oid;
+    return $oid if $oid =~ m/^\.0/;
 
     my $name = &SNMP::translateObj($oid);
     return $name if defined($name);

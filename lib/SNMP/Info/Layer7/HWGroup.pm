@@ -1,6 +1,6 @@
-# SNMP::Info::Layer3::Pica8
+# SNMP::Info::Layer7::HWGroup
 #
-# Copyright (c) 2013 Jeroen van Ingen
+# Copyright (c) 2022 Netdisco Developers
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -27,103 +27,80 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-package SNMP::Info::Layer3::Pica8;
+package SNMP::Info::Layer7::HWGroup;
 
 use strict;
 use warnings;
 use Exporter;
-use SNMP::Info::Layer3;
+use SNMP::Info::Layer7;
 
-@SNMP::Info::Layer3::Pica8::ISA       = qw/SNMP::Info::Layer3 Exporter/;
-@SNMP::Info::Layer3::Pica8::EXPORT_OK = qw//;
+@SNMP::Info::Layer7::HWGroup::ISA       = qw/SNMP::Info::Layer7/;
+@SNMP::Info::Layer7::HWGroup::EXPORT_OK = qw//;
 
-our ($VERSION, %GLOBALS, %MIBS, %FUNCS, %MUNGE);
+our ($VERSION, %FUNCS, %GLOBALS, %MIBS, %MUNGE);
 
 $VERSION = '3.89';
 
 %MIBS = (
-    %SNMP::Info::Layer3::MIBS,
+    %SNMP::Info::Layer7::MIBS,
+    'HWG-STE-MIB' => 'hwgroup',
 );
 
-%GLOBALS = (
-    %SNMP::Info::Layer3::GLOBALS,
-);
+%GLOBALS = (%SNMP::Info::Layer7::GLOBALS);
 
-%FUNCS = (
-    %SNMP::Info::Layer3::FUNCS,
-);
+%FUNCS = (%SNMP::Info::Layer7::FUNCS);
 
-%MUNGE = (
-    %SNMP::Info::Layer3::MUNGE,
-);
+%MUNGE = (%SNMP::Info::Layer7::MUNGE);
 
-sub vendor {
-    return 'pica8';
-}
+#sub os {
+#    return '';
+#}
 
-sub os {
-    my $pica8 = shift;
-    my $descr   = $pica8->description();
+#sub model {
+#    return '';
+#}
 
-    return $1 if ( $descr =~ /(\S+)\s+Platform Software/i );
-    return;
-}
-
-sub os_ver {
-    my $pica8 = shift;
-    my $descr   = $pica8->description();
-
-    if (defined ($descr)) {
-      return $1 if ($descr =~ /Software version ([\d\.]+)/i);
-    }
-    return;
-}
-
-sub model {
-    my $pica8 = shift;
-    my $descr   = $pica8->description();
-
-    if (defined $descr) {
-      return $1 if ($descr =~ /Hardware model (P-\d{4})/i);
-    }
-    return;
-}
+#sub vendor {
+#    return '';
+#}
 
 1;
+
 __END__
 
 =head1 NAME
 
-SNMP::Info::Layer3::Pica8 - SNMP Interface to L3 Devices, Pica8
+SNMP::Info::Layer7::HWGroup - SNMP Interface to HW Group devices
 
-=head1 AUTHORS
+=head1 AUTHOR
 
-Jeroen van Ingen
+Netdisco Developers
 
 =head1 SYNOPSIS
 
  # Let SNMP::Info determine the correct subclass for you.
- my $pica8 = new SNMP::Info(
+ my $hwgroup = new SNMP::Info(
                           AutoSpecify => 1,
                           Debug       => 1,
-                          DestHost    => 'myrouter',
+                          DestHost    => 'myhub',
                           Community   => 'public',
                           Version     => 2
                         )
     or die "Can't connect to DestHost.\n";
 
- my $class      = $pica8->class();
+ my $class = $hwgroup->class();
  print "SNMP::Info determined this device to fall under subclass : $class\n";
 
 =head1 DESCRIPTION
 
-Subclass for Pica8 devices
+Provides abstraction to information obtainable from an HW Group device
+through SNMP. See inherited classes' documentation for inherited methods.
 
 =head2 Inherited Classes
 
 =over
 
-=item SNMP::Info::Layer3
+=item SNMP::Info::Layer7
 
 =back
 
@@ -131,49 +108,52 @@ Subclass for Pica8 devices
 
 =over
 
-=item F<PICA-PRIVATE-MIB>
-
-=item Inherited Classes' MIBs
-
-See L<SNMP::Info::Layer3> for its own MIB requirements.
+=item F<HWG-STE-MIB>
 
 =back
+
+=head2 Inherited MIBs
+
+See L<SNMP::Info::Layer7/"Required MIBs"> for its MIB requirements.
 
 =head1 GLOBALS
 
 These are methods that return scalar value from SNMP
 
-=over
+#=head2 Overrides
+#
+#=over
+#
+#=item $hwgroup->vendor()
+#
+#Returns 'hwgroup'
+#
+#=item $hwgroup->os()
+#
+#Returns 'hwgroup'
+#
+#=item $hwgroup->os_ver()
+#
+#(C<lgpAgentDeviceFirmwareVersion.1>)
+#
+#=item $hwgroup->model()
+#
+#(C<lgpAgentDeviceModel.1>)
+#
+#=item $hwgroup->serial()
+#
+#(C<lgpAgentDeviceSerialNumber.1>)
+#
+#=back
 
-=item $pica8->vendor()
+=head2 Globals imported from SNMP::Info::Layer7
 
-Returns 'pica8'
+See L<SNMP::Info::Layer7/"GLOBALS"> for details.
 
-=item $pica8->model()
+=head1 TABLE METHODS
 
-Returns the model name extracted from C<sysDescr>.
+=head2 Table Methods imported from SNMP::Info::Layer7
 
-=item $pica8->os()
-
-Returns the OS extracted from C<sysDescr>.
-
-=item $pica8->os_ver()
-
-Returns the OS version extracted from C<sysDescr>.
-
-=back
-
-=head2 Globals imported from SNMP::Info::Layer3
-
-See documentation in L<SNMP::Info::Layer3> for details.
-
-=head1 TABLE ENTRIES
-
-These are methods that return tables of information in the form of a reference
-to a hash.
-
-=head2 Table Methods imported from SNMP::Info::Layer3
-
-See documentation in L<SNMP::Info::Layer3> for details.
+See L<SNMP::Info::Layer7/"TABLE METHODS"> for details.
 
 =cut
