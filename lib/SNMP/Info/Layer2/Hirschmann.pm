@@ -1,8 +1,6 @@
-# SNMP::Info::Layer2::HPVC - SNMP Interface to HP VirtualConnect Switches
+# SNMP::Info::Layer2::Hirschmann - SNMP Interface to Hirschmann Devices
 #
-# Copyright (c) 2011 Jeroen van Ingen
-#
-# All rights reserved.
+# Copyright (c) 2019 by The Netdisco Developer Team.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -28,34 +26,30 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-package SNMP::Info::Layer2::HPVC;
+package SNMP::Info::Layer2::Hirschmann;
 
 use strict;
 use warnings;
 use Exporter;
 use SNMP::Info::Layer2;
+use SNMP::Info::CDP;
 
-@SNMP::Info::Layer2::HPVC::ISA
-    = qw/SNMP::Info::Layer2 Exporter/;
-@SNMP::Info::Layer2::HPVC::EXPORT_OK = qw//;
+@SNMP::Info::Layer2::Hirschmann::ISA       = qw/SNMP::Info::Layer2 Exporter/;
+@SNMP::Info::Layer2::Hirschmann::EXPORT_OK = qw//;
 
-our ($VERSION, %GLOBALS, %MIBS, %FUNCS, %MUNGE);
+our ($VERSION, %FUNCS, %GLOBALS, %MIBS, %MUNGE, $AUTOLOAD);
 
 $VERSION = '3.92';
 
 %MIBS = (
     %SNMP::Info::Layer2::MIBS,
-    'HPVC-MIB'       => 'vcDomainName',
-    'CPQSINFO-MIB'   => 'cpqSiSysSerialNum',
-    'HPVCMODULE-MIB' => 'vcModuleDomainName',
+    'HMPRIV-MGMT-SNMP-MIB' => 'hirschmann',
 );
 
 %GLOBALS = (
     %SNMP::Info::Layer2::GLOBALS,
-    'serial1'      => 'cpqSiSysSerialNum.0',
-    'os_ver'       => 'cpqHoSWRunningVersion.1',
-    'os_bin'       => 'cpqHoFwVerVersion.1',
-    'productname'  => 'cpqSiProductName.0',
+    'h_serial_number' => 'hmSysGroupTable.hmSysGroupEntry.hmSysGroupSerialNum.1', 
+    'os_version'      => 'hmSysVersion.0'
 );
 
 %FUNCS = (
@@ -63,56 +57,104 @@ $VERSION = '3.92';
 );
 
 %MUNGE = (
-    # Inherit all the built in munging
     %SNMP::Info::Layer2::MUNGE,
 );
 
-# Method Overrides
-
 sub os {
-    return 'hpvc';
+    return 'Hirschmann';
+}
+
+sub serial {
+    my $hirschmann = shift;
+    my $model = $hirschmann->model();
+    my $id = $hirschmann->id();
+    my $serial;
+
+    return $hirschmann->h_serial_number() if ( $hirschmann->h_serial_number() );
+
+}
+
+sub os_ver {
+    my $hirschmann = shift;
+    my $model = $hirschmann->model();
+    my $id = $hirschmann->id();
+
+    my $os_version = $hirschmann->os_version();
+    if ( $os_version =~ m/(SW:\sL2.-\d{1,2}\.\d\.\d{2})/ ) {
+        return $1;
+    }
+
+    return $id unless defined $os_version;
+
+    return $os_version;
 }
 
 sub vendor {
-    return 'hp';
+    return 'Hirschmann';
 }
 
 sub model {
-    my $hp = shift;
-    return $hp->productname();
+    my $hmodel = shift;
+    my $id    = $hmodel->id();
+
+    my $model = &SNMP::translateObj($id) || $id;
+
+    # model return by snmp is rs30 also if its a rs40
+    if (defined $model && $model !~ /rs30/) {
+        return uc $model;
+    } else {
+        return 'RS40-30';
+    }
+
+    return;
 }
 
+sub mac {
+    my $hirschmann = shift;
+    my $i_descr    = $hirschmann->i_description();
+    my $i_mac      = $hirschmann->i_mac();
+
+    # Return Interface MAC addresse of the switch (on the CPU pseudo interface)
+    foreach my $entry ( sort keys %$i_descr ) {
+        my $descr = $i_descr->{$entry};
+        if ($descr =~ m/(^CPU.)/) {
+            my $sn = $i_mac->{$entry};
+#           next unless $sn;
+            return $sn;
+        }
+    }
+    return;
+}
 
 1;
 __END__
 
 =head1 NAME
 
-SNMP::Info::Layer2::HPVC - SNMP Interface to HP Virtual Connect Switches
+SNMP::Info::Layer2::Hirschamnn - SNMP Interface to L2 Hirschmann Switches
 
 =head1 AUTHOR
 
-Jeroen van Ingen
+Christophe COMTE
 
 =head1 SYNOPSIS
 
  # Let SNMP::Info determine the correct subclass for you.
- my $hp = new SNMP::Info(
+ my $router = new SNMP::Info(
                           AutoSpecify => 1,
                           Debug       => 1,
-                          DestHost    => 'myswitch',
+                          DestHost    => 'myrouter',
                           Community   => 'public',
                           Version     => 2
                         )
     or die "Can't connect to DestHost.\n";
 
- my $class      = $hp->class();
+ my $class      = $router->class();
  print "SNMP::Info determined this device to fall under subclass : $class\n";
 
 =head1 DESCRIPTION
 
-Provides abstraction to the configuration information obtainable from a
-HP Virtual Connect Switch via SNMP.
+Subclass for Hirschmann L2 devices
 
 =head2 Inherited Classes
 
@@ -126,45 +168,45 @@ HP Virtual Connect Switch via SNMP.
 
 =over
 
-=item F<HPVC-MIB>
+=item F<>
 
-=item F<CPQSINFO-MIB>
+=item Inherited Classes' MIBs
 
-=item F<HPVCMODULE-MIB>
+See L<SNMP::Info::Layer2/"Required MIBs"> for its own MIB requirements.
 
 =back
-
-All required MIBs can be found in the netdisco-mibs package.
 
 =head1 GLOBALS
 
 These are methods that return scalar value from SNMP
 
+=head2 Overrides
+
 =over
 
-=item $hp->os()
+=item $device->vendor()
 
-Returns C<'hpvc'>
+Returns 'hirschmann'
 
-=item $hp->os_bin()
+=item $device->os()
 
-C<cpqHoFwVerVersion.1>
+Returns 'hirschmann'
 
-=item $hp->os_ver()
+=item $device->os_ver()
 
-C<cpqHoSWRunningVersion.1>
+Return os version
 
-=item $hp->serial()
+=item $device->mac()
 
-C<cpqSiSysSerialNum.0>
+Return Interface MAC addresse of the switch (on the CPU pseudo interface).
 
-=item $hp->vendor()
+=item $device->model()
 
-hp
+Returns device model extracted from description
 
-=item $hp->model()
+=item $device->serial()
 
-C<cpqSiProductName.0>
+Returns serial number
 
 =back
 
@@ -181,11 +223,5 @@ to a hash.
 
 See documentation in L<SNMP::Info::Layer2/"TABLE METHODS"> for details.
 
-=head1 SET METHODS
-
-These are methods that provide SNMP set functionality for overridden methods
-or provide a simpler interface to complex set operations.  See
-L<SNMP::Info/"SETTING DATA VIA SNMP"> for general information on set
-operations.
-
 =cut
+

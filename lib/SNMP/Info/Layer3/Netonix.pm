@@ -1,6 +1,7 @@
-# SNMP::Info::Layer3::SteelheadEx
+# SNMP::Info::Layer3::Netonix
 #
-# Copyright (c) 2013 Eric Miller
+# Copyright (c) 2014-2016 Max Kosmach
+# Copyright (c) 2022 by Avant Wireless, LLC.
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -27,30 +28,29 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-package SNMP::Info::Layer3::SteelheadEx;
+package SNMP::Info::Layer3::Netonix;
 
 use strict;
 use warnings;
 use Exporter;
 use SNMP::Info::Layer3;
 
-@SNMP::Info::Layer3::SteelheadEx::ISA
-    = qw/SNMP::Info::Layer3 Exporter/;
-@SNMP::Info::Layer3::SteelheadEx::EXPORT_OK = qw//;
+@SNMP::Info::Layer3::Netonix::ISA       = qw/SNMP::Info::Layer3 Exporter/;
+@SNMP::Info::Layer3::Netonix::EXPORT_OK = qw//;
 
-our ($VERSION, %GLOBALS, %FUNCS, %MIBS, %MUNGE);
+our ($VERSION, %GLOBALS, %MIBS, %FUNCS, %MUNGE);
 
 $VERSION = '3.92';
 
 %MIBS = (
     %SNMP::Info::Layer3::MIBS,
-    'STEELHEAD-EX-MIB' => 'serialNumber',
+    'NETONIX-SWITCH-MIB'   => 'firmwareVersion',
 );
 
 %GLOBALS = (
     %SNMP::Info::Layer3::GLOBALS,
-    # Fully qualified to remove ambiguity of 'model'
-    'rb_model' => 'STEELHEAD-EX-MIB::model',
+    'os_ver' => 'firmwareVersion',
+    'mac'    => 'dot1dBaseBridgeAddress.0',
 );
 
 %FUNCS = (
@@ -62,44 +62,40 @@ $VERSION = '3.92';
 );
 
 sub layers {
-    return '01001100';
-}
-
-sub vendor {
-    return 'riverbed';
-}
-
-sub model {
-    my $riverbed = shift;
-
-    my $model = $riverbed->rb_model() || '';
-
-    if ($model =~ /^(\d+)/) {
-        return $1;
-    }
-    return $model;
+    # layers 2 and 3
+    return '00000110';
 }
 
 sub os {
-    return 'steelhead-ex';
+    my $netonix = shift;
+
+    return 'netonix';
 }
 
-sub os_ver {
-    my $riverbed = shift;
-
-    my $ver = $riverbed->systemVersion() || '';
-
-    if ( $ver =~ /(\d+[\.\d]+)/ ) {
-        return $1;
-    }
-
-    return $ver;
+sub vendor {
+    return 'netonix';
 }
 
+sub model {
+    my $netonix = shift;
+
+    my $descr = $netonix->description() || '';
+
+    my $model = undef;
+    $model = $1 if ( $descr =~ /^Netonix\s+(\S+)$/i );
+    return $model;
+}
+
+## simply take the MAC and clean it up
 sub serial {
-    my $riverbed = shift;
+    my $netonix = shift;
 
-    return $riverbed->serialNumber();
+    my $serial = $netonix->mac();
+    if($serial){
+        $serial =~ s/://g;
+        return uc $serial;
+    }
+    return ;
 }
 
 1;
@@ -107,32 +103,31 @@ __END__
 
 =head1 NAME
 
-SNMP::Info::Layer3::SteelheadEx - SNMP Interface to Riverbed Steelhead WAN
-optimization appliances.
+SNMP::Info::Layer3::Netonix - SNMP Interface to Netonix devices
 
-=head1 AUTHOR
+=head1 AUTHORS
 
-Eric Miller
+Max Kosmach
+Avant Wireless
 
 =head1 SYNOPSIS
 
  # Let SNMP::Info determine the correct subclass for you.
- my $riverbed = new SNMP::Info(
+ my $nx = new SNMP::Info(
                           AutoSpecify => 1,
                           Debug       => 1,
-                          DestHost    => 'myswitch',
+                          DestHost    => 'myrouter',
                           Community   => 'public',
                           Version     => 2
                         )
     or die "Can't connect to DestHost.\n";
 
- my $class = $riverbed->class();
+ my $class      = $nx->class();
  print "SNMP::Info determined this device to fall under subclass : $class\n";
 
 =head1 DESCRIPTION
 
-Abstraction subclass for Riverbed Steelhead WAN optimization appliances.
-
+Subclass for Netonix devices
 
 =head2 Inherited Classes
 
@@ -144,13 +139,13 @@ Abstraction subclass for Riverbed Steelhead WAN optimization appliances.
 
 =head2 Required MIBs
 
-F<STEELHEAD-MIB>
-
 =over
+
+=item F<NETONIX-SWITCH-MIB>
 
 =item Inherited Classes' MIBs
 
-See L<SNMP::Info::Layer3/"Required MIBs"> for its own MIB requirements.
+See L<SNMP::Info::Layer3> for its own MIB requirements.
 
 =back
 
@@ -160,29 +155,25 @@ These are methods that return scalar value from SNMP
 
 =over
 
-=item $riverbed->vendor()
+=item $nx->vendor()
 
-Returns 'riverbed'
+Returns C<'netonix'>.
 
-=item $riverbed->model()
+=item $nx->os()
 
-Returns the chassis model.
+Returns C<'netonix'>.
 
-(C<STEELHEAD-MIB::model>)
+=item $nx->model()
 
-=item $riverbed->os()
+Returns the model substring of C<description>.
 
-Returns 'steelhead'
+=item $nx->os_ver()
 
-=item $riverbed->os_ver()
+Returns the value of C<firmwareVersion>.
 
-Returns the software version extracted from (C<systemVersion>).
+=item $nx->serial()
 
-=item $riverbed->serial()
-
-Returns the chassis serial number.
-
-(C<serialNumber>)
+Returns the value of C<dot1dBaseBridgeAddress.0> without colons.
 
 =back
 
@@ -190,24 +181,24 @@ Returns the chassis serial number.
 
 =over
 
-=item $riverbed->layers()
+=item $nx->layers()
 
-Returns 01001100.  Steelhead does not support bridge MIB, so override reported
-layers.
+Returns 00000110. Netonix doesn't report layers, modified to reflect
+Layer 2 and 3 functionality.
 
 =back
 
 =head2 Globals imported from SNMP::Info::Layer3
 
-See documentation in L<SNMP::Info::Layer3/"GLOBALS"> for details.
+See documentation in L<SNMP::Info::Layer3> for details.
 
-=head1 TABLE METHODS
+=head1 TABLE ENTRIES
 
 These are methods that return tables of information in the form of a reference
 to a hash.
 
 =head2 Table Methods imported from SNMP::Info::Layer3
 
-See documentation in L<SNMP::Info::Layer3/"TABLE METHODS"> for details.
+See documentation in L<SNMP::Info::Layer3> for details.
 
 =cut

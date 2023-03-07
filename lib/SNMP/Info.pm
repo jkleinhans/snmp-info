@@ -15,6 +15,7 @@ use strict;
 use Exporter;
 use SNMP;
 use Carp;
+use Scalar::Util ();
 use Math::BigInt;
 use NetAddr::IP::Lite ':lower';
 
@@ -25,7 +26,7 @@ our
     ($VERSION, %FUNCS, %GLOBALS, %MIBS, %MUNGE, $AUTOLOAD, $INIT, $DEBUG, %SPEED_MAP,
      $NOSUCH, $BIGINT, $REPEATERS);
 
-$VERSION = '3.89';
+$VERSION = '3.92';
 
 =head1 NAME
 
@@ -33,7 +34,7 @@ SNMP::Info - OO Interface to Network devices and MIBs through SNMP
 
 =head1 VERSION
 
-SNMP::Info - Version 3.89
+SNMP::Info - Version 3.92
 
 =head1 AUTHOR
 
@@ -56,14 +57,16 @@ list any missing functionality (such as neighbor discovery tables).
 
  use SNMP::Info;
 
- my $info = new SNMP::Info(
-                            # Auto Discover more specific Device Class
+ my $info = SNMP::Info->new({
+                            # Auto Discover your Device Class (Cisco, Juniper, etc ...)
                             AutoSpecify => 1,
                             Debug       => 1,
+
                             # The rest is passed to SNMP::Session
                             DestHost    => 'router',
                             Community   => 'public',
                             Version     => 2
+
                             # Parameter reference for SNMPv3
                             # Version   => 3
                             # SecLevel  => 'authPriv', # authPriv|authNoPriv|noAuthNoPriv
@@ -72,10 +75,11 @@ list any missing functionality (such as neighbor discovery tables).
                             # AuthPass  => 'authp4ss',
                             # PrivProto => 'DES',      # DES|AES
                             # PrivPass  => 'pr1vp4ss',
-                          ) or die "Can't connect to device.\n";
+                           });
 
  my $err = $info->error();
- die "SNMP Community or Version probably wrong connecting to device. $err\n" if defined $err;
+ die $err if defined $err;
+ # usually a wrong DestHost or Community or Version if you have trouble here
 
  my $name  = $info->name();
  my $class = $info->class();
@@ -634,6 +638,12 @@ Subclass for Exinda / GFI Network Orchestrator traffic shapers.
 
 See documentation in L<SNMP::Info::Layer2::Exinda> for details.
 
+=item SNMP::Info::Layer2::Hirschmann
+
+Subclass for Hirschmann switches
+
+See documentation in L<SNMP::Info::Layer2::Hirschmann> for details.
+
 =item SNMP::Info::Layer2::HP
 
 Subclass for more recent HP Procurve Switches.
@@ -986,6 +996,12 @@ Subclass for Avaya/Nortel Ethernet Routing Switch 1600 series.
 
 See documentation in L<SNMP::Info::Layer3::N1600> for details.
 
+=item SNMP::Info::Layer3::Netonix
+
+Subclass for Netonix switches.
+
+See documentation in L<SNMP::Info::Layer3::Netonix> for details.
+
 =item SNMP::Info::Layer3::NetSNMP
 
 Subclass for host systems running Net-SNMP.
@@ -1207,18 +1223,24 @@ on the Netdisco README!
 
 Creates a new object and connects via SNMP::Session.
 
- my $info = new SNMP::Info( 'Debug'             => 1,
-                            'AutoSpecify'       => 1,
-                            'BigInt'            => 1,
-                            'BulkWalk'          => 1,
-                            'BulkRepeaters'     => 20,
-                            'IgnoreNetSNMPConf' => 1,
-                            'LoopDetect'        => 1,
-                            'DestHost'          => 'myrouter',
-                            'Community'         => 'public',
-                            'Version'           => 2,
-                            'MibDirs'           => ['dir1','dir2','dir3'],
-                          ) or die;
+Always returns an SNMP::Info instance, and you should always check for
+error() as in SYNOPSIS above to be sure of success.
+
+Will take a bare list of key/value options but we recommend a HASH ref
+as in the example below and SYNOPSIS, to catch syntax errors.
+
+ my $info = SNMP::Info->({ 'Debug'             => 1,
+                           'AutoSpecify'       => 1,
+                           'BigInt'            => 1,
+                           'BulkWalk'          => 1,
+                           'BulkRepeaters'     => 20,
+                           'LoopDetect'        => 1,
+                           'IgnoreNetSNMPConf' => 1,
+                           'DestHost'          => 'myrouter',
+                           'Community'         => 'public',
+                           'Version'           => 2,
+                           'MibDirs'           => ['dir1','dir2','dir3'],
+                        });
 
 SNMP::Info Specific Arguments :
 
@@ -1357,7 +1379,7 @@ then fallback to version 1.
 sub new {
     my $proto     = shift;
     my $class     = ref($proto) || $proto;
-    my %args      = @_;
+    my %args      = (ref $_[0] ? %{ $_[0] } : @_);
     my %sess_args = %args;
     my $new_obj   = {};
     bless $new_obj, $class;
@@ -1460,16 +1482,16 @@ sub new {
 
     # No session object created
     unless ( defined $sess ) {
-        $new_obj->error_throw("SNMP::Info::new() Failed to Create Session. ");
-        return;
+        $new_obj->error_throw("SNMP::Info::new() Net-SNMP session creation failed completely.");
+        return $new_obj;
     }
 
     # Session object created but SNMP connection failed.
-    my $sess_err = $sess->{ErrorStr} || '';
-    if ($sess_err) {
+    if ($sess->{ErrorStr}) {
+        my $sess_err = $sess->{ErrorStr} || 'no specific error';
         $new_obj->error_throw(
-            "SNMP::Info::new() Net-SNMP session creation failed. $sess_err");
-        return;
+            "SNMP::Info::new() Net-SNMP session creation failed: $sess_err");
+        return $new_obj;
     }
 
     # Save Args for later
@@ -1740,6 +1762,7 @@ sub device_type {
         45    => 'SNMP::Info::Layer2::Baystack',
         96    => 'SNMP::Info::Layer3::Whiterabbit',
         171   => 'SNMP::Info::Layer3::DLink',
+        207   => 'SNMP::Info::Layer2::Allied',
         244   => 'SNMP::Info::Layer3::Lantronix',
         311   => 'SNMP::Info::Layer3::Microsoft',
         664   => 'SNMP::Info::Layer2::Adtran',
@@ -1794,6 +1817,7 @@ sub device_type {
         40310 => 'SNMP::Info::Layer3::Cumulus',
         41112 => 'SNMP::Info::Layer2::Ubiquiti',
         44641 => 'SNMP::Info::Layer3::VyOS',
+        46242 => 'SNMP::Info::Layer3::Netonix',
         47196 => 'SNMP::Info::Layer3::ArubaCX',
         48690 => 'SNMP::Info::Layer3::Teltonika',
     );
@@ -1806,6 +1830,7 @@ sub device_type {
         96    => 'SNMP::Info::Layer3::Whiterabbit',
         171   => 'SNMP::Info::Layer3::DLink',
         207   => 'SNMP::Info::Layer2::Allied',
+	248   => 'SNMP::Info::Layer2::Hirschmann',
         266   => 'SNMP::Info::Layer2::Nexans',
         664   => 'SNMP::Info::Layer2::Adtran',
         674   => 'SNMP::Info::Layer3::Dell',
@@ -1834,6 +1859,7 @@ sub device_type {
         21091 => 'SNMP::Info::Layer2::Exinda',
         26543 => 'SNMP::Info::Layer3::IBMGbTor',
         26928 => 'SNMP::Info::Layer2::Aerohive',
+        46242 => 'SNMP::Info::Layer3::Netonix',
         47196 => 'SNMP::Info::Layer3::ArubaCX',
         48690 => 'SNMP::Info::Layer3::Teltonika',
     );
@@ -2337,8 +2363,8 @@ sub specify {
     my $device_type = $self->device_type();
     unless ( defined $device_type ) {
         $self->error_throw(
-            "SNMP::Info::specify() - Could not get info from device");
-        return;
+            "SNMP::Info::specify() - fatal error: connect failed or missing sysServices and/or sysDescr");
+        return $self;
     }
     return $self if $device_type eq 'SNMP::Info';
 
@@ -4930,6 +4956,11 @@ sub _cache {
     my $store = $self->store();
 
     if (ref {} eq ref $data) {
+        if (! Scalar::Util::looks_like_number($self->{"_${attr}"})) {
+            # https://github.com/netdisco/snmp-info/issues/464
+            # perhaps this is being set twice and first time gets $data ??
+            $self->{"_${attr}"} = 0;
+        }
         $self->{"_${attr}"}++;
         $store->{$attr} = $data;
     }
