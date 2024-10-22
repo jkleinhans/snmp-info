@@ -2,7 +2,7 @@ NAME
     SNMP::Info - OO Interface to Network devices and MIBs through SNMP
 
 VERSION
-    SNMP::Info - Version 3.92
+    SNMP::Info - Version 3.972000
 
 AUTHOR
     SNMP::Info is maintained by team of Open Source authors headed by Eric
@@ -637,6 +637,9 @@ SUBCLASSES
         SNMP::Info::Layer3::Altiga
             See documentation in SNMP::Info::Layer3::Altiga for details.
 
+        SNMP::Info::Layer3::Meraki
+            See documentation in SNMP::Info::Layer3::Meraki for details.
+
         SNMP::Info::Layer3::Arista
             See documentation in SNMP::Info::Layer3::Arista for details.
 
@@ -746,6 +749,12 @@ SUBCLASSES
             Subclass for Extreme Networks switches.
 
             See documentation in SNMP::Info::Layer3::Extreme for details.
+
+        SNMP::Info::Layer3::ExtremeWing
+            Subclass for Extreme WiNG APs.
+
+            See documentation in SNMP::Info::Layer3::ExtremeWing for
+            details.
 
         SNMP::Info::Layer3::F5
             Subclass for F5 devices.
@@ -883,6 +892,11 @@ SUBCLASSES
             Subclass for redlion routers.
 
             See documentation in SNMP::Info::Layer3::Redlion for details.
+
+        SNMP::Info::Layer3::SilverPeak
+            Subclass for SilverPeak devices.
+
+            See documentation in SNMP::Info::Layer3::SilverPeak for details.
 
         SNMP::Info::Layer3::Scalance
             Subclass for Siemens Scalance devices.
@@ -1111,15 +1125,15 @@ USAGE
         Offline
             Causes SNMP::Info to avoid network activity and return data only
             from its cache. If you ask for something not in the cache, an
-            error is thrown. See also the "cache()" and "offline()" methods.
+            error is thrown. See also the cache() and offline() methods.
 
             (default 0, which means "online")
 
         Cache
             Pass in a HashRef to prime the cache of retrieved data. Useful
             for creating an instance in "Offline" mode from a previously
-            dumped cache. See also the "cache()" method to retrieve a cache
-            after running actial queries.
+            dumped cache. See also the cache() method to retrieve a cache
+            after running actual queries.
 
         OTHER
             All other arguments are passed to SNMP::Session.
@@ -1425,8 +1439,8 @@ USAGE
         ("ifAlias")
 
   Interface Statistics
-    $info->i_octet_in(), $info->i_octets_out(), $info->i_octet_in64(),
-    $info->i_octets_out64()
+    $info->i_octet_in(), $info->i_octet_out(), $info->i_octet_in64(),
+    $info->i_octet_out64()
         Bandwidth.
 
         Number of octets sent/received on the interface including framing
@@ -2044,6 +2058,7 @@ SNMP::INFO INTERNALS
                         '1000000000' => '1.0 Gbps',
                         '2000000000' => '2.0 Gbps',
                         '2488000000' => 'OC-48',
+                        '2500000000' => '2.5 Gbps',
                      )
 
         Note: high speed interfaces (usually 1 Gbps or faster) have their
@@ -2058,9 +2073,9 @@ SNMP::INFO INTERNALS
     munge_ip()
         Takes a binary IP and makes it dotted ASCII.
 
-    munge_inetaddress
+    munge_inetaddress()
         Takes a binary IP address as defined by the SNMP InetAddress type
-        and returns it as human readable string;
+        and returns it as human readable string.
 
     munge_mac()
         Takes an octet stream (HEX-STRING) and returns a colon separated

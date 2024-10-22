@@ -26,7 +26,7 @@ our
     ($VERSION, %FUNCS, %GLOBALS, %MIBS, %MUNGE, $AUTOLOAD, $INIT, $DEBUG, %SPEED_MAP,
      $NOSUCH, $BIGINT, $REPEATERS);
 
-$VERSION = '3.92';
+$VERSION = '3.972000';
 
 =head1 NAME
 
@@ -34,7 +34,7 @@ SNMP::Info - OO Interface to Network devices and MIBs through SNMP
 
 =head1 VERSION
 
-SNMP::Info - Version 3.92
+SNMP::Info - Version 3.972000
 
 =head1 AUTHOR
 
@@ -768,6 +768,10 @@ See documentation in L<SNMP::Info::Layer3::AlteonAD> for details.
 
 See documentation in L<SNMP::Info::Layer3::Altiga> for details.
 
+=item SNMP::Info::Layer3::Meraki
+
+See documentation in L<SNMP::Info::Layer3::Meraki> for details.
+
 =item SNMP::Info::Layer3::Arista
 
 See documentation in L<SNMP::Info::Layer3::Arista> for details.
@@ -896,6 +900,12 @@ See documentation in L<SNMP::Info::Layer3::ERX> for details.
 Subclass for Extreme Networks switches.
 
 See documentation in L<SNMP::Info::Layer3::Extreme> for details.
+
+=item SNMP::Info::Layer3::ExtremeWing
+
+Subclass for Extreme WiNG APs.
+
+See documentation in L<SNMP::Info::Layer3::ExtremeWing> for details.
 
 =item SNMP::Info::Layer3::F5
 
@@ -1062,6 +1072,12 @@ See documentation in L<SNMP::Info::Layer3::Pica8> for details.
 Subclass for redlion routers.
 
 See documentation in L<SNMP::Info::Layer3::Redlion> for details.
+
+=item SNMP::Info::Layer3::SilverPeak
+
+Subclass for SilverPeak devices.
+
+See documentation in L<SNMP::Info::Layer3::SilverPeak> for details.
 
 =item SNMP::Info::Layer3::Scalance
 
@@ -1345,7 +1361,7 @@ also the C<cache()> and C<offline()> methods.
 
 Pass in a HashRef to prime the cache of retrieved data. Useful for creating an
 instance in C<Offline> mode from a previously dumped cache. See also the
-C<cache()> method to retrieve a cache after running actial queries.
+C<cache()> method to retrieve a cache after running actual queries.
 
 =item OTHER
 
@@ -1807,10 +1823,12 @@ sub device_type {
         17163 => 'SNMP::Info::Layer3::Steelhead',
         19046 => 'SNMP::Info::Layer3::Lenovo',
         21091 => 'SNMP::Info::Layer2::Exinda',
+        23867 => 'SNMP::Info::Layer3::SilverPeak',
         25461 => 'SNMP::Info::Layer3::PaloAlto',
         25506 => 'SNMP::Info::Layer3::H3C',
         26543 => 'SNMP::Info::Layer3::IBMGbTor',
         26928 => 'SNMP::Info::Layer2::Aerohive',
+        29671 => 'SNMP::Info::Layer3::Meraki',
         30065 => 'SNMP::Info::Layer3::Arista',
         30803 => 'SNMP::Info::Layer3::VyOS',
         35098 => 'SNMP::Info::Layer3::Pica8',
@@ -1830,7 +1848,7 @@ sub device_type {
         96    => 'SNMP::Info::Layer3::Whiterabbit',
         171   => 'SNMP::Info::Layer3::DLink',
         207   => 'SNMP::Info::Layer2::Allied',
-	248   => 'SNMP::Info::Layer2::Hirschmann',
+        248   => 'SNMP::Info::Layer2::Hirschmann',
         266   => 'SNMP::Info::Layer2::Nexans',
         664   => 'SNMP::Info::Layer2::Adtran',
         674   => 'SNMP::Info::Layer3::Dell',
@@ -1989,6 +2007,10 @@ sub device_type {
         #   This is for enterprises(1).cisco(9).otherEnterprises(6).ciscosb(1)
         $objtype = 'SNMP::Info::Layer2::CiscoSB'
             if ( $soid =~ /^\.?1\.3\.6\.1\.4\.1\.9\.6\.1/ );
+
+        # Extreme WiNG APs (formerly Motorola)
+        $objtype = 'SNMP::Info::Layer3::ExtremeWing'
+            if ( $soid =~ /^\.?1\.3\.6\.1\.4\.1\.388\.50/ );
 
         # Avaya Secure Router
         $objtype = 'SNMP::Info::Layer3::Tasman'
@@ -2174,7 +2196,7 @@ sub device_type {
             if ( $desc =~ /8-port .DSL Module\(Annex .\)/i );
 
         # Generic DOCSIS Cable Modem override
-        # If sysDesc follows the DOCSIS standard
+        # If sysDescr follows the DOCSIS standard
         $objtype = 'SNMP::Info::DocsisCM'
             if ( $desc =~ /<<HW_REV: .*; VENDOR: .*; BOOTR: .*; SW_REV: .*; MODEL: .*>>/i);
 
@@ -2601,7 +2623,7 @@ sub i_speed_raw {
     my $info    = shift;
     my $partial = shift;
 
-    # remove the speed formating
+    # remove the speed formatting
     my $munge_i_speed = delete $info->{munge}{i_speed};
     # also for highspeed interfaces e.g. TenGigabitEthernet
     my $munge_i_speed_high = delete $info->{munge}{i_speed_high};
@@ -2618,7 +2640,7 @@ sub i_speed_raw {
         }
     }
 
-    # restore the speed formating
+    # restore the speed formatting
     $info->{munge}{i_speed} = $munge_i_speed;
     $info->{munge}{i_speed_high} = $munge_i_speed_high;
 
@@ -2678,8 +2700,8 @@ of i_description().  For others it is a human set field like i_name().
 
 =over
 
-=item $info->i_octet_in(), $info->i_octets_out(),
-$info->i_octet_in64(), $info->i_octets_out64()
+=item $info->i_octet_in(), $info->i_octet_out(),
+$info->i_octet_in64(), $info->i_octet_out64()
 
 Bandwidth.
 
@@ -3786,6 +3808,7 @@ Makes human friendly speed ratings using C<%SPEED_MAP>.
                 '1000000000' => '1.0 Gbps',
                 '2000000000' => '2.0 Gbps',
                 '2488000000' => 'OC-48',
+                '2500000000' => '2.5 Gbps',
              )
 
 Note: high speed interfaces (usually 1 Gbps or faster) have their link
@@ -3833,6 +3856,7 @@ munge_highspeed(). SNMP::Info can return speeds up to terabit levels this way.
     '1000000000' => '1.0 Gbps',
     '2000000000' => '2.0 Gbps',
     '2488000000' => 'OC-48',
+    '2500000000' => '2.5 Gbps',
 );
 
 sub munge_speed {
@@ -3883,10 +3907,10 @@ sub munge_ip {
     return join( '.', unpack( 'C4', $ip ) );
 }
 
-=item munge_inetaddress
+=item munge_inetaddress()
 
 Takes a binary IP address as defined by the SNMP InetAddress type and returns
-it as human readable string;
+it as human readable string.
 
 =cut
 

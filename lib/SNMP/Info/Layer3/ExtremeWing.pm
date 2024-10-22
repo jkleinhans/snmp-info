@@ -1,6 +1,6 @@
-package SNMP::Info::Layer3::Redlion;
+package SNMP::Info::Layer3::ExtremeWing;
 #
-# Copyright (c) 2019 nick nauwelaerts
+# Copyright (c) 2019 Netdisco Contributors
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -33,11 +33,11 @@ use warnings;
 use Exporter;
 use SNMP::Info::Layer3;
 
-@SNMP::Info::Layer3::Redlion::ISA = qw/
+@SNMP::Info::Layer3::ExtremeWing::ISA = qw/
     SNMP::Info::Layer3
     Exporter
 /;
-@SNMP::Info::Layer3::Redlion::EXPORT_OK = qw//;
+@SNMP::Info::Layer3::ExtremeWing::EXPORT_OK = qw//;
 
 our ($VERSION, %GLOBALS, %MIBS, %FUNCS, %MUNGE);
 
@@ -45,14 +45,31 @@ $VERSION = '3.972000';
 
 %MIBS = (
     %SNMP::Info::Layer3::MIBS,
-    'RED-LION-RAM-MIB' => 'unitDescription',
+    'WING-MIB' => 'wingCfgMgmtName',
+    'WS-SMI'   => 'ws2000',
 );
 
 %GLOBALS = (
     %SNMP::Info::Layer3::GLOBALS,
-    'sn_model'  => 'unitDescription',
-    'sn_os_ver' => 'unitFirmwareVersion',
-    'sn_serial' => 'unitSerialNumber',
+
+# WiNG APs have a full entity mib, on all the models we tested in 2024 there is a single chassis entry at index 4000.
+# The entPhysicalModelName seems to be a better representation of the model than the systemOID (e.g.wingSysoidAP310), 
+# so we use the former if available.
+# Sample data:
+#  .1.3.6.1.2.1.47.1.1.1.1.2.4000 = STRING: "Extreme Networks, Inc. AP7532"
+#  .1.3.6.1.2.1.47.1.1.1.1.2.4000 = STRING: "Extreme Networks, Inc. AP310"
+#  .1.3.6.1.2.1.47.1.1.1.1.2.4000 = STRING: "Extreme Networks, Inc. AP360"
+#  .1.3.6.1.2.1.47.1.1.1.1.2.4000 = STRING: "Extreme Networks, Inc. AP310-1"
+#  .1.3.6.1.2.1.47.1.1.1.1.2.4000 = STRING: "Extreme Networks, Inc. NX5500"
+#  .1.3.6.1.2.1.47.1.1.1.1.13.4000 = STRING: "AP310i-WR"
+#  .1.3.6.1.2.1.47.1.1.1.1.13.4000 = STRING: "AP360i-WR"
+#  .1.3.6.1.2.1.47.1.1.1.1.13.4000 = STRING: "AP310i-1-WR"
+#  .1.3.6.1.2.1.47.1.1.1.1.13.4000 = STRING: "NX-5500-100R0-WR"
+#  .1.3.6.1.2.1.47.1.1.1.1.13.4000 = STRING: "AP-7532-67030-WR"
+
+    'wing_os_ver' => 'entPhysicalSoftwareRev.4000',
+    'wing_mfg' => 'entPhysicalMfgName.4000',
+    'wing_model' => 'entPhysicalModelName.4000'
 );
 
 %FUNCS = (
@@ -63,39 +80,29 @@ $VERSION = '3.972000';
     %SNMP::Info::Layer3::MUNGE,
 );
 
-sub layers {
-    return '00000110';
-}
-
 sub vendor {
-    return 'redlion';
+    my $self = shift;
+    return $self->wing_mfg();
 }
 
 sub os_ver {
-    my $redlion = shift;
+    my $self = shift;
+    return $self->wing_os_ver();
+}
 
-    return $redlion->sn_os_ver();
+sub os {
+    return 'WiNG';
 }
 
 sub model {
-    my $redlion = shift;
-
-    return $redlion->sn_model();
+    my $self = shift;
+    # the super model is the resolved systemOid, use as fallback
+    my $pm = $self->SUPER::model();
+    my $wm =  $self->wing_model();
+    return $wm ? $wm : $pm; 
 }
 
-sub serial {
-    my $redlion = shift;
 
-    return $redlion->sn_serial();
-}
-
-# is actually just an embedded linux
-# 'sn' refers to "sixnet", the original creators of the device
-# layer2::sixnet is for redlion's switch offerings.
-# (they also have a different enterprise oid)
-sub os {
-    return 'sn';
-}
 
 1;
 
@@ -103,16 +110,16 @@ __END__
 
 =head1 NAME
 
-SNMP::Info::Layer3::Redlion - SNMP Interface to redlion routers
+SNMP::Info::Layer3::ExtremeWing - SNMP Interface to Extreme WiNG APs
 
 =head1 AUTHORS
 
-nick nauwelaerts
+Nick Nauwelaerts, Christian Ramseyer and Netdisco Contributors
 
 =head1 SYNOPSIS
 
     # Let SNMP::Info determine the correct subclass for you.
-    my $redlion = new SNMP::Info(
+    my $self = new SNMP::Info(
                           AutoSpecify => 1,
                           Debug       => 1,
                           DestHost    => 'myrouter',
@@ -121,12 +128,17 @@ nick nauwelaerts
                         )
     or die "Can't connect to DestHost.\n";
 
-    my $class      = $redlion->class();
+    my $class      = $self->class();
     print "SNMP::Info determined this device to fall under subclass : $class\n";
 
 =head1 DESCRIPTION
 
-Subclass for redlion routers.
+Subclass for Extreme WiNG APs
+
+WiNG APs have a full entity mib, on all the models we tested in 2024 there
+is a single chassis entry at index 4000. This class returns the relevant
+bits from this index.
+
 
 =head2 Inherited Classes
 
@@ -140,7 +152,7 @@ Subclass for redlion routers.
 
 =over
 
-=item F<RED-LION-RAM-MIB>
+=item F<WING-MIB>
 
 =back
 
@@ -154,30 +166,21 @@ These are methods that return scalar value from SNMP.
 
 =over
 
-=item $redlion->layers()
+=item $self->os()
 
-Returns '00000110' since sysServices returns undef.
+Returns 'WiNG'.
 
-=item $redlion->model()
+=item $self->os_ver()
 
-Returns the model extracted from C<unitDescription>.
+Returns the os version extracted from C<entPhysicalSoftwareRev>.
 
-=item $redlion->os()
+=item $self->vendor()
 
-Returns 'sn'.
+Returns the value from C<entPhysicalMfgName>.
 
-=item $redlion->os_ver()
+=item $self-model()
 
-Returns the os version extracted from C<unitFirmwareVersion>.
-
-=item $redlion->serial()
-
-Returns the serial extracted from C<unitSerialNumber>. Must be enabled
-in the snmp setup of the device to show this.
-
-=item $redlion->vendor()
-
-Returns 'redlion'.
+Returns the value from C<entPhysicalModelName>.
 
 =back
 

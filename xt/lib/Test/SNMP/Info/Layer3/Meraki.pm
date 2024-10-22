@@ -1,6 +1,6 @@
-# Test::SNMP::Info::Aggregate
+# Test::SNMP::Info::Layer3::Meraki
 #
-# Copyright (c) 2018 Eric Miller
+# Copyright (c) 2024 SNMP::Info Developers
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -15,7 +15,7 @@
 #       names of its contributors may be used to endorse or promote products
 #       derived from this software without specific prior written permission.
 #
-# THIS SOFTWARE IS PROVIDED BY THE COPYRSNMP::Info::AdslLineIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
 # AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
 # IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
 # ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
@@ -27,65 +27,32 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-package Test::SNMP::Info::Aggregate;
+package Test::SNMP::Info::Layer3::Meraki;
 
 use Test::Class::Most parent => 'My::Test::Class';
 
-use SNMP::Info::Aggregate;
+use SNMP::Info::Layer3::Meraki;
 
 sub setup : Tests(setup) {
   my $test = shift;
   $test->SUPER::setup;
 
   # Start with a common cache that will serve most tests
-  # ieee8023adLag example from Cisco 65xx VSS snmpwalk
   my $cache_data = {
-    '_ifStackStatus' => 1,
-    '_ifType'        => 1,
-    'store'          => {
-      'ifStackStatus' => {
-        '0.1'     => 'active',
-        '1.0'     => 'active',
-        '10.0'    => 'active',
-        '20.0'    => 'active',
-        '80.0'    => 'active',
-        '90.0'    => 'active',
-        '0.163'   => 'active',
-        '163.10'  => 'active',
-        '163.90'  => 'active',
-        '0.8193'  => 'active',
-        '5010.10102' => 'active',
-        '5010.10103' => 'active',
-        '8193.20' => 'active',
-        '8193.80' => 'active',
-      },
-      'ifType' => {
-        '1'    => 'ethernetCsmacd',
-        '10'   => 'ethernetCsmacd',
-        '20'   => 'ethernetCsmacd',
-        '80'   => 'ethernetCsmacd',
-        '90'   => 'ethernetCsmacd',
-        '10102' => 'ethernetCsmacd',
-        '10103' => 'ethernetCsmacd',
-        '163'  => 'ieee8023adLag',
-        '5010' => 'propVirtual',
-        '8193' => 'propMultiplexor',
-      },
-    }
+    '_layers' => 6,
+
+    # No MIB to resolve, just use enterprise ID
+    '_id'   => '.1.3.6.1.4.1.29671',
+    'store' => {},
   };
   $test->{info}->cache($cache_data);
 }
 
-sub agg_ports_ifstack : Tests(2) {
-  my $test = shift;
+sub layers : Tests(2) {
+    my $test = shift;
 
-  can_ok($test->{info}, 'agg_ports_ifstack');
-
-  my $expected
-    = {'10' => '163', '90' => '163', '20' => '8193', '80' => '8193',};
-
-  cmp_deeply($test->{info}->agg_ports_ifstack(),
-    $expected, q(Aggregated links have expected values));
+    can_ok( $test->{info}, 'layers' );
+    is( $test->{info}->layers(), '00000110', q(Layers returns '00000110') );
 }
 
 1;

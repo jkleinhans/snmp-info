@@ -1,7 +1,6 @@
-# SNMP::Info::Layer2::HPVC - SNMP Interface to HP VirtualConnect Switches
+# SNMP::Info::Layer3::SilverPeak
 #
-# Copyright (c) 2011 Jeroen van Ingen
-#
+# Copyright (c) 2024 Netdisco Developers
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -28,76 +27,87 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-package SNMP::Info::Layer2::HPVC;
+package SNMP::Info::Layer3::SilverPeak;
 
 use strict;
 use warnings;
 use Exporter;
-use SNMP::Info::Layer2;
+use SNMP::Info::Layer3;
 
-@SNMP::Info::Layer2::HPVC::ISA
-    = qw/SNMP::Info::Layer2 Exporter/;
-@SNMP::Info::Layer2::HPVC::EXPORT_OK = qw//;
+@SNMP::Info::Layer3::SilverPeak::ISA = qw/SNMP::Info::Layer3 Exporter/;
+@SNMP::Info::Layer3::SilverPeak::EXPORT_OK = qw//;
 
-our ($VERSION, %GLOBALS, %MIBS, %FUNCS, %MUNGE);
+our ($VERSION, %MIBS, %FUNCS, %GLOBALS, %MUNGE);
 
 $VERSION = '3.972000';
 
 %MIBS = (
-    %SNMP::Info::Layer2::MIBS,
-    'HPVC-MIB'       => 'vcDomainName',
-    'CPQSINFO-MIB'   => 'cpqSiSysSerialNum',
-    'HPVCMODULE-MIB' => 'vcModuleDomainName',
+    %SNMP::Info::Layer3::MIBS,
+    'SILVERPEAK-MGMT-MIB'    => 'spsSystemVersion',
+    'SILVERPEAK-PRODUCTS-MIB' => 'silverpeakProductsMIB',
 );
 
 %GLOBALS = (
-    %SNMP::Info::Layer2::GLOBALS,
-    'serial1'      => 'cpqSiSysSerialNum.0',
-    'os_ver'       => 'cpqHoSWRunningVersion.1',
-    'os_bin'       => 'cpqHoFwVerVersion.1',
-    'productname'  => 'cpqSiProductName.0',
+    %SNMP::Info::Layer3::GLOBALS,
+    'os_ver'       => 'spsSystemVersion.0',
+    'product_model'=> 'spsProductModel.0',
+    'serial'       => 'spsSystemSerial.0',
+    'uptime'       => 'spsSystemUptime.0',
 );
 
 %FUNCS = (
-    %SNMP::Info::Layer2::FUNCS,
+    %SNMP::Info::Layer3::FUNCS,
 );
 
 %MUNGE = (
-    # Inherit all the built in munging
-    %SNMP::Info::Layer2::MUNGE,
+    %SNMP::Info::Layer3::MUNGE,
 );
 
-# Method Overrides
-
-sub os {
-    return 'hpvc';
-}
-
 sub vendor {
-    return 'hp';
+    return 'silverpeak';
 }
 
 sub model {
-    my $hp = shift;
-    return $hp->productname();
+    my $silverpeak = shift;
+    my $model = $silverpeak->product_model();
+    return $model if defined $model;
+    return;
 }
 
+sub os {
+    return 'silverpeak';
+}
+
+sub os_ver {
+    my $silverpeak = shift;
+    return $silverpeak->spsSystemVersion();
+}
+
+sub serial {
+    my $silverpeak = shift;
+    return $silverpeak->spsSystemSerial();
+}
+
+sub uptime {
+    my $silverpeak = shift;
+    return $silverpeak->spsSystemUptime();
+}
 
 1;
 __END__
 
 =head1 NAME
 
-SNMP::Info::Layer2::HPVC - SNMP Interface to HP Virtual Connect Switches
+SNMP::Info::Layer3::SilverPeak - SNMP Interface to SilverPeak devices.
 
 =head1 AUTHOR
 
-Jeroen van Ingen
+Netdisco Developers
 
 =head1 SYNOPSIS
 
  # Let SNMP::Info determine the correct subclass for you.
- my $hp = new SNMP::Info(
+ my $silverpeak = new SNMP::Info(
                           AutoSpecify => 1,
                           Debug       => 1,
                           DestHost    => 'myswitch',
@@ -106,35 +116,35 @@ Jeroen van Ingen
                         )
     or die "Can't connect to DestHost.\n";
 
- my $class      = $hp->class();
+ my $class = $silverpeak->class();
  print "SNMP::Info determined this device to fall under subclass : $class\n";
 
 =head1 DESCRIPTION
 
-Provides abstraction to the configuration information obtainable from a
-HP Virtual Connect Switch via SNMP.
+Abstraction subclass for SilverPeak devices.
+
 
 =head2 Inherited Classes
 
 =over
 
-=item SNMP::Info::Layer2
+=item SNMP::Info::Layer3
 
 =back
 
 =head2 Required MIBs
 
+F<SILVERPEAK-MGMT-MIB>
+
+F<SILVERPEAK-PRODUCTS-MIB>
+
 =over
 
-=item F<HPVC-MIB>
+=item Inherited Classes' MIBs
 
-=item F<CPQSINFO-MIB>
-
-=item F<HPVCMODULE-MIB>
+See L<SNMP::Info::Layer3/"Required MIBs"> for its own MIB requirements.
 
 =back
-
-All required MIBs can be found in the netdisco-mibs package.
 
 =head1 GLOBALS
 
@@ -142,50 +152,57 @@ These are methods that return scalar value from SNMP
 
 =over
 
-=item $hp->os()
+=item $silverpeak->vendor()
 
-Returns C<'hpvc'>
+Returns 'silverpeak'
 
-=item $hp->os_bin()
+=item $silverpeak->model()
 
-C<cpqHoFwVerVersion.1>
+Returns the chassis model.
 
-=item $hp->os_ver()
+(C<SILVERPEAK-PRODUCTS-MIB::model>)
 
-C<cpqHoSWRunningVersion.1>
+=item $silverpeak->os()
 
-=item $hp->serial()
+Returns 'silverpeak'
 
-C<cpqSiSysSerialNum.0>
+=item $silverpeak->os_ver()
 
-=item $hp->vendor()
+Returns the software version extracted from (C<spsSystemVersion>).
 
-hp
+=item $silverpeak->serial()
 
-=item $hp->model()
+Returns the chassis serial number.
 
-C<cpqSiProductName.0>
+(C<spsSystemSerial>)
 
 =back
 
-=head2 Globals imported from SNMP::Info::Layer2
+=head2 Overrides
 
-See documentation in L<SNMP::Info::Layer2/"GLOBALS"> for details.
+=over
+
+=item $silverpeak->uptime()
+
+returns spsSystemUptime
+
+=back
+
+=head2 Globals imported from SNMP::Info::Layer3
+
+See documentation in L<SNMP::Info::Layer3/"GLOBALS"> for details.
 
 =head1 TABLE METHODS
 
 These are methods that return tables of information in the form of a reference
 to a hash.
 
-=head2 Table Methods imported from SNMP::Info::Layer2
+=head2 Table Methods imported from SNMP::Info::Layer3
 
-See documentation in L<SNMP::Info::Layer2/"TABLE METHODS"> for details.
+See documentation in L<SNMP::Info::Layer3/"TABLE METHODS"> for details.
 
-=head1 SET METHODS
+=head2 AUTHOR
 
-These are methods that provide SNMP set functionality for overridden methods
-or provide a simpler interface to complex set operations.  See
-L<SNMP::Info/"SETTING DATA VIA SNMP"> for general information on set
-operations.
+Written and contributed by Muris Boric. Many thanks!
 
 =cut
