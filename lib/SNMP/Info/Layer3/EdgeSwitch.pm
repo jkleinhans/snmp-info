@@ -1,6 +1,6 @@
-# SNMP::Info::Layer3::Sun
-#
-# Copyright (c) 2008 Eric Miller
+package SNMP::Info::Layer3::EdgeSwitch;
+
+# Copyright (c) 2025 Ambroise Rosset
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -27,26 +27,28 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-package SNMP::Info::Layer3::Sun;
-
 use strict;
 use warnings;
 use Exporter;
 use SNMP::Info::Layer3;
 
-@SNMP::Info::Layer3::Sun::ISA       = qw/SNMP::Info::Layer3 Exporter/;
-@SNMP::Info::Layer3::Sun::EXPORT_OK = qw//;
+@SNMP::Info::Layer3::EdgeSwitch::ISA       = qw/SNMP::Info::Layer3 Exporter/;
+@SNMP::Info::Layer3::EdgeSwitch::EXPORT_OK = qw//;
 
 our ($VERSION, %GLOBALS, %MIBS, %FUNCS, %MUNGE);
 
 $VERSION = '3.974000';
 
-%MIBS = ( %SNMP::Info::Layer3::MIBS, );
+%MIBS = (
+    %SNMP::Info::Layer3::MIBS,
+    'EdgeSwitch-SWITCHING-MIB' => 'fastPathSwitching',
+);
 
 %GLOBALS = (
     %SNMP::Info::Layer3::GLOBALS,
-    'sun_hostid' => '.1.3.6.1.4.1.42.3.1.2.0',
-    'motd'       => '.1.3.6.1.4.1.42.3.1.3.0',
+    'inv_mach_model'  => 'agentInventoryMachineModel',
+    'serial1'=> 'agentInventorySerialNumber',
+    'sw_ver' => 'agentInventorySoftwareVersion',
 );
 
 %FUNCS = ( %SNMP::Info::Layer3::FUNCS, );
@@ -54,49 +56,31 @@ $VERSION = '3.974000';
 %MUNGE = ( %SNMP::Info::Layer3::MUNGE, );
 
 sub vendor {
-    return 'sun';
-}
-
-sub os {
-    return 'sun';
-}
-
-sub os_ver {
-    my $sun   = shift;
-    my $descr = $sun->motd();
-    return unless defined $descr;
-
-    if ( $descr =~ m/SunOS (\S+)/ ) {
-        return $1;
-    }
-    return;
+    return 'broadcom';
 }
 
 sub model {
-    return 'Solaris Router';
+    my $es = shift;
+    my $model = $es->inv_mach_model();
+
+    return $model if defined($model);
 }
 
-sub serial {
-    my $sun = shift;
-    my $serial = unpack( "H*", $sun->sun_hostid() );
-    return $serial;
+sub os {
+    return 'efos';
 }
 
-sub i_ignore {
-    my $l3      = shift;
-    my $partial = shift;
-
-    my $interfaces = $l3->interfaces($partial) || {};
-
-    my %i_ignore;
-    foreach my $if ( keys %$interfaces ) {
-
-        # lo0
-        if ( $interfaces->{$if} =~ /\blo0\b/i ) {
-            $i_ignore{$if}++;
-        }
+sub os_ver {
+    my $es = shift;
+    my $os_ver = $es->sw_ver();
+    my $os_string = $es->sys_descr();
+    if (defined ($os_ver)) {
+        return $os_ver;
+    } elsif (defined ($os_string) && $os_string =~ /^EFOS, ([\.0-9]+),/) {
+        return $1;
+    } else {
+        return ''; # perhaps we can try sysDescr or some other object...
     }
-    return \%i_ignore;
 }
 
 1;
@@ -105,30 +89,30 @@ __END__
 
 =head1 NAME
 
-SNMP::Info::Layer3::Sun - SNMP Interface to L3 Sun Solaris
+SNMP::Info::Layer3::EdgeSwitch - SNMP Interface to Broadcom EdgeSwitch devices.
 
 =head1 AUTHOR
 
-begemot
+Ambroise Rosset
 
 =head1 SYNOPSIS
 
  # Let SNMP::Info determine the correct subclass for you.
- my $sun = new SNMP::Info(
+ my $router = new SNMP::Info(
                           AutoSpecify => 1,
                           Debug       => 1,
-                          DestHost    => 'mysunrouter',
+                          DestHost    => 'myrouter',
                           Community   => 'public',
-                          Version     => 1
+                          Version     => 2
                         )
     or die "Can't connect to DestHost.\n";
 
- my $class      = $sun->class();
+ my $class      = $router->class();
  print "SNMP::Info determined this device to fall under subclass : $class\n";
 
 =head1 DESCRIPTION
 
-Subclass for Generic Sun Routers running SunOS
+Subclass for Broadcom EdgeSwitch devices
 
 =head2 Inherited Classes
 
@@ -142,6 +126,8 @@ Subclass for Generic Sun Routers running SunOS
 
 =over
 
+=item F<EdgeSwitch-SWITCHING-MIB>
+
 =item Inherited Classes' MIBs
 
 See L<SNMP::Info::Layer3/"Required MIBs"> for its own MIB requirements.
@@ -152,27 +138,25 @@ See L<SNMP::Info::Layer3/"Required MIBs"> for its own MIB requirements.
 
 These are methods that return scalar value from SNMP
 
+=head2 Overrides
+
 =over
 
-=item $sun->vendor()
+=item $router->vendor()
 
-Returns 'sun'
+Returns C<'broadcom'>
 
-=item $sun->os()
+=item $router->model()
 
-Returns 'sun'
+Tries to resolve model string fomr C<"agentInventoryMachineModel">
 
-=item $sun->os_ver()
+=item $router->os()
 
-Returns the software version extracted from message of the day.
+Returns C<'efos'>
 
-=item $sun->model()
+=item $router->os_ver()
 
-Returns 'Solaris Router'
-
-=item $sun->serial()
-
-Returns serial number
+Tries to resolve version string from C<"agentInventorySoftwareVersion"> or C<"sysDescr">.
 
 =back
 
@@ -185,20 +169,9 @@ See documentation in L<SNMP::Info::Layer3/"GLOBALS"> for details.
 These are methods that return tables of information in the form of a reference
 to a hash.
 
-=head2 Overrides
-
-=over
-
-=item $sun->i_ignore()
-
-Returns reference to hash.  Increments value of IID if port is to be ignored.
-
-Ignores loopback
-
-=back
-
 =head2 Table Methods imported from SNMP::Info::Layer3
 
 See documentation in L<SNMP::Info::Layer3/"TABLE METHODS"> for details.
 
 =cut
+

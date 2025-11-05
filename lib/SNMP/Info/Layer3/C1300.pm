@@ -1,6 +1,6 @@
-# SNMP::Info::Layer3::Force10
+# SNMP::Info::Layer3::C1300
 #
-# Copyright (c) 2012 William Bulley
+# Copyright (c) 2008 C1300 Networks, Inc.
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -11,7 +11,7 @@
 #     * Redistributions in binary form must reproduce the above copyright
 #       notice, this list of conditions and the following disclaimer in the
 #       documentation and/or other materials provided with the distribution.
-#     * Neither the name of University of California, Santa Cruz nor the
+#     * Neither the name of C1300 Networks, Inc. nor the
 #       names of its contributors may be used to endorse or promote products
 #       derived from this software without specific prior written permission.
 #
@@ -27,171 +27,106 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-package SNMP::Info::Layer3::Force10;
+package SNMP::Info::Layer3::C1300;
 
 use strict;
 use warnings;
 use Exporter;
-
 use SNMP::Info::Layer3;
 use SNMP::Info::MAU;
+use SNMP::Info::Aggregate 'agg_ports_ifstack';
 
-@SNMP::Info::Layer3::Force10::ISA = qw/SNMP::Info::MAU
-    SNMP::Info::Layer3 Exporter/;
-@SNMP::Info::Layer3::Force10::EXPORT_OK = qw//;
+@SNMP::Info::Layer3::C1300::ISA = qw/
+    SNMP::Info::Aggregate
+    SNMP::Info::MAU
+    SNMP::Info::Layer3
+    SNMP::Info::Bridge
+    Exporter
+/;
+@SNMP::Info::Layer3::C1300::EXPORT_OK = qw//;
 
-our ($VERSION, $DEBUG, %GLOBALS, %MIBS, %FUNCS, %MUNGE);
+our ($VERSION, %GLOBALS, %MIBS, %FUNCS, %MUNGE);
 
 $VERSION = '3.974000';
 
 %MIBS = (
     %SNMP::Info::Layer3::MIBS,
     %SNMP::Info::MAU::MIBS,
-    'F10-PRODUCTS-MIB' => 'f10ESeriesProducts',
+    %SNMP::Info::Aggregate::MIBS,
+    %SNMP::Info::Bridge::MIBS,
+    'CISCO-PRODUCTS-MIB' => 'ciscoIGS',
 );
 
 %GLOBALS = (
     %SNMP::Info::Layer3::GLOBALS,
     %SNMP::Info::MAU::GLOBALS,
+    %SNMP::Info::Bridge::GLOBALS,
 );
 
 %FUNCS = (
     %SNMP::Info::Layer3::FUNCS,
     %SNMP::Info::MAU::FUNCS,
+    %SNMP::Info::Bridge::FUNCS,
 );
 
 %MUNGE = (
     %SNMP::Info::Layer3::MUNGE,
     %SNMP::Info::MAU::MUNGE,
+    %SNMP::Info::Bridge::MUNGE,
 );
 
 # use MAU-MIB for admin. duplex and admin. speed
-*SNMP::Info::Layer3::Force10::i_duplex_admin
+*SNMP::Info::Layer3::C1300::i_duplex_admin
     = \&SNMP::Info::MAU::mau_i_duplex_admin;
-*SNMP::Info::Layer3::Force10::i_speed_admin
+*SNMP::Info::Layer3::C1300::i_speed_admin
     = \&SNMP::Info::MAU::mau_i_speed_admin;
 
+sub v_name { return (shift)->dot1qVlanStaticName }
+
 sub vendor {
-    return 'force10';
+    return 'Cisco';
 }
 
 sub os {
-    return 'ftos';
-}
-
-sub os_ver {
-    my $force10 = shift;
-    my $descr   = $force10->description();
-    my $os_ver  = undef;
-
-    $os_ver = $1 if ( $descr =~ /\s+Application\s+Software\s+Version:\s+(\S+)/s );
-
-    return $os_ver;
-}
-
-sub model {
-    my $force10 = shift;
-    my $id      = $force10->id();
-
-    my $model = &SNMP::translateObj($id);
-    return $id unless defined $model;
-
-    return $model;
-}
-
-sub v_name {
-    my $force10 = shift;
-    my $partial = shift;
-
-    return $force10->qb_v_name($partial);
-}
-
-# ------------------- stub for now-----------------
-sub i_vlan {
-    my $force10 = shift;
-    my $partial = shift;
-
-    my $i_vlan = {};
-
-    return $i_vlan;
-}
-
-# Apparently index doesn't use VLAN ID, so override the HOA private
-# method here to correct the mapping
-sub _vlan_hoa {
-    my $force10 = shift;
-    my ( $v_ports, $partial ) = @_;
-
-    my $index   = $force10->bp_index();
-    my $v_index = $force10->v_index();
-
-    my $vlan_hoa = {};
-    foreach my $idx ( sort keys %{$v_ports} ) {
-        next unless ( defined $v_ports->{$idx} );
-        my $portlist = $v_ports->{$idx}; # is an array reference
-        my $ret      = [];
-        my $vlan_ndx = $idx;
-
-        # Strip TimeFilter if we're using VlanCurrentTable
-        ( $vlan_ndx = $idx ) =~ s/^\d+\.//;
-
-        # Convert portlist bit array to bp_index array
-        for ( my $i = 0; $i <= $#$portlist; $i++ ) {
-            push( @{$ret}, $i + 1 ) if ( @$portlist[$i] );
-        }
-
-        #Create HoA ifIndex -> VLAN array
-        foreach my $port ( @{$ret} ) {
-            my $ifindex = $index->{$port};
-            next unless ( defined($ifindex) );    # shouldn't happen
-            next if ( defined $partial and $ifindex !~ /^$partial$/ );
-            my $vlan_tag = $v_index->{$vlan_ndx};
-
-            # FIXME: would be preferable to use
-            # the mapping from Q-BRIDGE-MIB::dot1qVlanFdbId
-            my $mod = $vlan_tag % 4096;
-
-            push ( @{ $vlan_hoa->{$ifindex} }, ($mod) );
-        }
-    }
-    return $vlan_hoa;
+    return 'IOS';
 }
 
 1;
-
 __END__
 
 =head1 NAME
 
-SNMP::Info::Layer3::Force10 - SNMP Interface to Force10 Networks FTOS
+SNMP::Info::Layer3::C1300 - SNMP Interface to C1300 Networks EOS
 
 =head1 AUTHOR
 
-William Bulley
+Bill Fenner
 
 =head1 SYNOPSIS
 
  # Let SNMP::Info determine the correct subclass for you.
- my $force10 = new SNMP::Info(
+ my $C1300 = new SNMP::Info(
                         AutoSpecify => 1,
                         Debug       => 1,
                         # These arguments are passed directly to SNMP::Session
                         DestHost    => 'myswitch',
                         Community   => 'public',
                         Version     => 2
-                        )
+		 	)
     or die "Can't connect to DestHost.\n";
 
- my $class      = $force10->class();
+ my $class      = $C1300->class();
  print "SNMP::Info determined this device to fall under subclass : $class\n";
 
 =head1 DESCRIPTION
 
-Subclass for Force10 Networks FTOS-based devices.
+Subclass for C1300 Networks EOS-based devices
 
 =head2 Inherited Classes
 
 =over
+
+=item SNMP::Info::Aggregate
 
 =item SNMP::Info::Layer3
 
@@ -203,11 +138,13 @@ Subclass for Force10 Networks FTOS-based devices.
 
 =over
 
-=item F<F10-PRODUCTS-MIB>
+=item F<C1300-PRODUCTS-MIB>
 
 =item Inherited Classes' MIBs
 
 See L<SNMP::Info::Layer3/"Required MIBs"> for its own MIB requirements.
+
+See L<SNMP::Info::Aggregate/"Required MIBs"> for its own MIB requirements.
 
 See L<SNMP::Info::MAU/"Required MIBs"> for its own MIB requirements.
 
@@ -215,25 +152,27 @@ See L<SNMP::Info::MAU/"Required MIBs"> for its own MIB requirements.
 
 =head1 GLOBALS
 
-These are methods that return scalar values from SNMP:
+These are methods that return scalar values from SNMP
 
 =over
 
-=item $force10->vendor()
+=item $C1300->vendor()
 
-Returns C<'force10'>
+Returns 'C1300'
 
-=item $force10->model()
+=item $C1300->model()
 
-Tries to reference $force10->id() to the Force10 product MIB listed above.
+Tries to reference $C1300->id() to one of the product MIBs listed above
 
-=item $force10->os()
+Removes 'C1300' from the name for readability.
 
-Returns C<'ftos'>.
+=item $C1300->os()
 
-=item $force10->os_ver()
+Returns 'EOS'
 
-Grabs the operating system version from C<sysDescr>
+=item $C1300->os_ver()
+
+Grabs the os version from C<sysDescr>
 
 =back
 
@@ -252,21 +191,27 @@ to a hash.
 
 =over
 
-=item $force10->v_name()
+=item $C1300->v_name()
 
-Returns the VLAN names.
+The VLAN Names.
 
-=item $force10->i_vlan()
-
-Currently not implemented.
-
-=item $force10->i_duplex_admin()
+=item $C1300->i_duplex_admin()
 
 Returns info from F<MAU-MIB>
 
-=item $force10->i_speed_admin()
+=item $C1300->i_speed_admin()
 
 Returns info from F<MAU-MIB>
+
+=item $C1300->lldp_if()
+
+Returns the mapping to the SNMP Interface Table.
+
+=item C<agg_ports>
+
+Returns a HASH reference mapping from slave to master port for each member of
+a port bundle on the device. Keys are ifIndex of the slave ports, Values are
+ifIndex of the corresponding master ports.
 
 =back
 
@@ -277,5 +222,18 @@ See documentation in L<SNMP::Info::Layer3/"TABLE METHODS"> for details.
 =head2 Table Methods imported from SNMP::Info::MAU
 
 See documentation in L<SNMP::Info::MAU/"TABLE METHODS"> for details.
+
+=head1 SET METHODS
+
+These are methods that provide SNMP set functionality for overridden methods
+or provide a simpler interface to complex set operations.  See
+L<SNMP::Info/"SETTING DATA VIA SNMP"> for general information on set
+operations.
+
+=over
+
+=item set_i_vlan()
+
+=back
 
 =cut

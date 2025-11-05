@@ -26,7 +26,7 @@ our
     ($VERSION, %FUNCS, %GLOBALS, %MIBS, %MUNGE, $AUTOLOAD, $INIT, $DEBUG, %SPEED_MAP,
      $NOSUCH, $BIGINT, $REPEATERS);
 
-$VERSION = '3.972000';
+$VERSION = '3.974000';
 
 =head1 NAME
 
@@ -34,7 +34,7 @@ SNMP::Info - OO Interface to Network devices and MIBs through SNMP
 
 =head1 VERSION
 
-SNMP::Info - Version 3.972000
+SNMP::Info - Version 3.974000
 
 =head1 AUTHOR
 
@@ -75,6 +75,11 @@ list any missing functionality (such as neighbor discovery tables).
                             # AuthPass  => 'authp4ss',
                             # PrivProto => 'DES',      # DES|AES
                             # PrivPass  => 'pr1vp4ss',
+
+                            # Rarer options - see https://metacpan.org/pod/SNMP for full list
+                            # Timeout => 15 * 1000000, # microseconds
+                            # RemotePort => 161,
+                            # NonIncreasing => 1
                            });
 
  my $err = $info->error();
@@ -801,6 +806,10 @@ Subclass for BlueCoat SG series proxy devices.
 
 See documentation in L<SNMP::Info::Layer3::BlueCoatSG> for details.
 
+=item SNMP::Info::Layer3::C1300
+
+See documentation in L<SNMP::Info::Layer3::C1300> for details.
+
 =item SNMP::Info::Layer3::C3550
 
 Subclass for Cisco Catalyst 3550,3540,3560 2/3 switches running IOS.
@@ -882,6 +891,12 @@ See documentation in L<SNMP::Info::Layer3::Dell> for details.
 Subclass for DLink devices.
 
 See documentation in L<SNMP::Info::Layer3::DLink> for details.
+
+=item SNMP::Info::Layer3::EdgeSwitch
+
+Subclass for Broadcom EdgeSwitch devices.
+
+See documentation in L<SNMP::Info::Layer3::EdgeSwitch> for details.
 
 =item SNMP::Info::Layer3::Enterasys
 
@@ -1213,6 +1228,12 @@ Subclass for Citrix Netscaler appliances.
 
 See documentation in L<SNMP::Info::Layer7::Netscaler> for details.
 
+=item SNMP::Info::Layer7::Stormshield
+
+Subclass for Stormshield Network Security appliances.
+
+See documentation in L<SNMP::Info::Layer7::Stormshield> for details.
+
 
 =back
 
@@ -1482,6 +1503,12 @@ sub new {
     }
 
     $new_obj->{nosuch} = $args{RetryNoSuch} || $NOSUCH;
+
+    # this will have the cleartext community, enable when needed
+    #if ($args{Debug}) {
+    #    use Data::Dumper;
+    #    print "SNMP::Info::new sess_args for SNMP::Session : ", Dumper(\%sess_args);
+    #}
 
     # Initialize mibs if not done
     my $init_ref = $new_obj->{init};
@@ -1813,6 +1840,7 @@ sub device_type {
         9303  => 'SNMP::Info::Layer3::PacketFront',
         10002 => 'SNMP::Info::Layer2::Ubiquiti',
         10418 => 'SNMP::Info::Layer1::Cyclades',
+        11256 => 'SNMP::Info::Layer7::Stormshield',
         12325 => 'SNMP::Info::Layer3::Pf',
         12356 => 'SNMP::Info::Layer3::Fortinet',
         13191 => 'SNMP::Info::Layer3::OneAccess',
@@ -1892,6 +1920,7 @@ sub device_type {
         476   => 'SNMP::Info::Layer7::Liebert',
         5951  => 'SNMP::Info::Layer7::Netscaler',
         9694  => 'SNMP::Info::Layer7::Arbor',
+        11256 => 'SNMP::Info::Layer7::Stormshield',
         12532 => 'SNMP::Info::Layer7::Neoteris',
         14525 => 'SNMP::Info::Layer2::Trapeze',
         21796 => 'SNMP::Info::Layer7::HWGroup',
@@ -1915,6 +1944,7 @@ sub device_type {
 
         return $objtype unless ( defined $desc and length($desc) );
 
+        $objtype = 'SNMP::Info::Layer3::C1300' if $desc =~ /Catalyst 1300 Series Managed Switch/;
         $objtype = 'SNMP::Info::Layer3::C3550' if $desc =~ /(C3550|C3560)/;
         $objtype = 'SNMP::Info::Layer3::C4000' if $desc =~ /Catalyst 4[05]00/;
         $objtype = 'SNMP::Info::Layer3::Foundry' if $desc =~ /foundry/i;
@@ -2065,7 +2095,11 @@ sub device_type {
 
         # Whiterabbit Timing
         $objtype = 'SNMP::Info::Layer3::Whiterabbit'
-	    if ( $soid =~ /\.1\.3\.6\.1\.4\.1\.96\.100\.1000/i );
+            if ( $soid =~ /\.1\.3\.6\.1\.4\.1\.96\.100\.1000/i );
+
+        # Broadcom Edge Switches
+        $objtype = 'SNMP::Info::Layer3::EdgeSwitch'
+            if ( $desc =~ /^EFOS/ and $soid =~ /\.1\.3\.6\.1\.4\.1\.4413/i );
 
         # Generic device classification based upon sysObjectID
         if (    ( $objtype eq 'SNMP::Info::Layer3' )
@@ -2270,14 +2304,14 @@ sub device_type {
         $objtype = 'SNMP::Info::Layer7::CiscoIPS'
             if ( $soid =~ /\.1\.3\.6\.1\.4\.1\.9\.1\.1545/i );
 
-	# Siemens Simatic Scalance 
+	    # Siemens Simatic Scalance 
         # Scalance overwrites layers later, 
         # so if we don't add it here (layer3) and at other
         # it would flip/flop between those
         $objtype = 'SNMP::Info::Layer3::Scalance'
 	    if ( $soid =~ /\.1\.3\.6\.1\.4\.1\.4329\.6\.1\.2/i );
 	    
-	# Whiterabbit Timing
+        # Whiterabbit Timing
         $objtype = 'SNMP::Info::Layer3::Whiterabbit'
 	    if ( $soid =~ /\.1\.3\.6\.1\.4\.1\.96\.100\.1000/i );
 
